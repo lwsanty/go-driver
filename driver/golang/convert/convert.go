@@ -90,11 +90,11 @@ func registerType(tp string, rt interface{}) {
 	typeNameToType[tp] = reflect.TypeOf(rt)
 }
 
-func NodeToAST(n nodes.Node) *ast.File {
+func NodeToAST(n nodes.Node) ast.Node {
 	// if we return nil pointer as interface it means that interface with nil pointer will be returned
 	// Elem() returns interface from nil from nil pointer inside interface
 	// then we cast interface to ast.Node
-	res := nodeToAST(n, reflect.TypeOf((*ast.Node)(nil)).Elem()).Interface().(ast.File)
+	res := nodeToAST(n, reflect.TypeOf((*ast.Node)(nil)).Elem()).Interface().(ast.Node)
 	ast.Walk(FuncVisitor(func(node ast.Node) {
 		switch o := node.(type) {
 		case *ast.FuncDecl:
@@ -115,8 +115,8 @@ func NodeToAST(n nodes.Node) *ast.File {
 			}
 		}
 
-	}), &res)
-	return &res
+	}), res)
+	return res
 }
 
 func nodeToAST(n nodes.Node, t reflect.Type) reflect.Value {
@@ -174,8 +174,6 @@ func nodeToAST(n nodes.Node, t reflect.Type) reflect.Value {
 						continue
 					}
 					goTypeVal = reflect.New(goTypeVal.Type())
-				} else {
-					goTypeVal = goTypeVal.Addr()
 				}
 			}
 
@@ -187,7 +185,7 @@ func nodeToAST(n nodes.Node, t reflect.Type) reflect.Value {
 			// set the resulting value field as convertedVal
 			val.Field(field.Index[0]).Set(convertedVal)
 		}
-		return val
+		return val.Addr()
 	case nodes.Array:
 		// note arrays are slices of interfaces []Node, thus we need to init val in a different way
 		// t is type of the field
