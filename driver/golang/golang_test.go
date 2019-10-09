@@ -3,6 +3,7 @@ package golang
 import (
 	"bytes"
 	"context"
+	"go/ast"
 	"go/format"
 	"go/parser"
 	"go/printer"
@@ -17,6 +18,7 @@ import (
 	"github.com/bblfsh/sdk/v3/uast"
 	"github.com/bblfsh/sdk/v3/uast/nodes"
 	"github.com/bblfsh/sdk/v3/uast/transformer"
+	"github.com/dave/dst/decorator"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/src-d/go-log.v1"
 	"gopkg.in/yaml.v2"
@@ -133,11 +135,102 @@ func TestUASTNodeToCode(t *testing.T) {
 	}
 }
 
+// PASS 30/83
+func TestCodeToASTAndBackPreservesInfo(t *testing.T) {
+	files, err := selectFiles()
+	require.NoError(t, err)
+
+	for _, f := range files {
+		fBase := filepath.Base(f)
+		t.Run(fBase, func(t *testing.T) {
+			data, err := ioutil.ReadFile(f)
+			require.NoError(t, err)
+
+			expCode, err := formatCode(string(data))
+			require.NoError(t, err)
+
+			expAST, _, err := ParseString(expCode)
+			require.NoError(t, err)
+
+			// get astCode
+			actCode, err := astToCode(expAST)
+			require.NoError(t, err)
+
+			actCode, err = formatCode(actCode)
+			require.NoError(t, err)
+
+			require.Equal(t, expCode, actCode)
+		})
+	}
+}
+
+// PASS 30/83, with small block
+func TestDecoratorPreservesPositionsWithCode(t *testing.T) {
+	testDSTDecoration(t, false)
+}
+
+// PASS 75/83, with small block
+func TestDecoratorPreservesPositionsWithAST(t *testing.T) {
+	testDSTDecoration(t, true)
+}
+
+func testDSTDecoration(t *testing.T, comparePrintedAST bool) {
+	files, err := selectFiles()
+	require.NoError(t, err)
+
+	for _, f := range files {
+		fBase := filepath.Base(f)
+		t.Run(fBase, func(t *testing.T) {
+			data, err := ioutil.ReadFile(f)
+			require.NoError(t, err)
+
+			expCode, err := formatCode(string(data))
+			require.NoError(t, err)
+
+			expAST, f, err := ParseString(expCode)
+			require.NoError(t, err)
+
+			// convert to decorate and back
+			dstAST, err := decorator.DecorateFile(f, expAST)
+			require.NoError(t, err)
+
+			_, actAST, err := decorator.RestoreFile(dstAST)
+			require.NoError(t, err)
+
+			if comparePrintedAST {
+				// this small block makes assertion between printed AST and printed AST after decoration restore
+				expCode, err = astToCode(expAST)
+				require.NoError(t, err)
+				expCode, err = formatCode(expCode)
+				require.NoError(t, err)
+			}
+
+			// get astCode
+			actCode, err := astToCode(actAST)
+			require.NoError(t, err)
+
+			actCode, err = formatCode(actCode)
+			require.NoError(t, err)
+
+			require.Equal(t, expCode, actCode)
+		})
+	}
+}
+
 func nodeToCode(n nodes.Node) (string, error) {
 	astNode := convert.NodeToAST(n)
 
 	buf := &bytes.Buffer{}
 	if err := format.Node(buf, token.NewFileSet(), astNode); err != nil {
+		return "", err
+	}
+
+	return buf.String(), nil
+}
+
+func astToCode(ast *ast.File) (string, error) {
+	buf := &bytes.Buffer{}
+	if err := format.Node(buf, token.NewFileSet(), ast); err != nil {
 		return "", err
 	}
 

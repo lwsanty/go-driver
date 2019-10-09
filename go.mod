@@ -4,6 +4,7 @@ go 1.12
 
 require (
 	github.com/bblfsh/sdk/v3 v3.3.0
+	github.com/dave/dst v0.23.1
 	github.com/google/go-cmp v0.3.0 // indirect
 	github.com/konsorten/go-windows-terminal-sequences v1.0.2 // indirect
 	github.com/opencontainers/runc v1.0.0-rc6 // indirect
