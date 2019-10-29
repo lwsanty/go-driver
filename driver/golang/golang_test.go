@@ -198,7 +198,7 @@ func selectFiles() ([]string, error) {
 	return matches, nil
 }
 
-// aaaaaaaaaa
+// aaaaaaaaaaa
 func getCode(name string) string {
 	return `package main
 
